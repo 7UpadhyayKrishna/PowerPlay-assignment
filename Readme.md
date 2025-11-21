@@ -1,90 +1,104 @@
-DevOps Intern Assignment — Powerplay
+# DevOps Intern Assignment — Powerplay
 
-Author: Krishna Upadhyay
-Region: ap-south-1 (Mumbai)
+**Author:** Krishna Upadhyay  
+**Region:** ap-south-1 (Mumbai)
 
-Objective
+## Objective
 
 This assignment demonstrates practical DevOps skills including:
+- Linux user management
+- Web server setup
+- System monitoring and automation
+- CloudWatch log integration
+- Systemd timers
+- AWS SES-based alerting
+- Clear documentation for reproducibility
 
-Linux user management
+---
 
-Web server setup
+## Part 1: Environment Setup
 
-System monitoring and automation
+### Launch EC2 Instance
+- **AMI:** Ubuntu 22.04 LTS
+- **Instance Type:** t2.micro
+- **Security Group:** SSH (22) + HTTP (80)
 
-CloudWatch log integration
+### SSH into Instance
+```bash
+ssh -i "your-key.pem" ubuntu@<EC2-PUBLIC-IP>
+```
 
-Systemd timers
-
-AWS SES-based alerting
-
-Clear documentation for reproducibility
-
-Part 1: Environment Setup
-Launch EC2 Instance
-
-Ubuntu 22.04 LTS
-
-t2.micro
-
-Security Group: SSH (22) + HTTP (80)
-
-SSH into Instance
-ssh -i "your-key.pem" ubuntu@<PUBLIC_IP>
-
-Create User and Grant Sudo
+### Create User and Grant Sudo
+```bash
 sudo adduser devops_intern
 echo "devops_intern ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/devops_intern
+```
 
-Change Hostname
+### Change Hostname
+```bash
 sudo hostnamectl set-hostname Krishna-devops
+```
 
-Switch User
+### Switch User
+```bash
 su - devops_intern
 sudo whoami
+```
 
+### Deliverable
+Screenshot showing:
+- Hostname
+- New user entry in `/etc/passwd`
+- Output of `sudo whoami`
 
-Deliverable:
-Screenshot showing hostname, new user entry in /etc/passwd, and sudo whoami.
+---
 
-Part 2: Simple Web Service
-Install Nginx
+## Part 2: Simple Web Service
+
+### Install Nginx
+```bash
 sudo apt update
 sudo apt install nginx -y
+```
 
-Fetch Metadata (IMDSv2)
+### Fetch Metadata (IMDSv2)
+```bash
 TOKEN=`curl -X PUT "http://169.254.169.254/latest/api/token" \
--H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
 
 INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" \
--s http://169.254.169.254/latest/meta-data/instance-id)
+  -s http://169.254.169.254/latest/meta-data/instance-id)
 
 UPTIME=$(uptime -p)
+```
 
-Create Webpage
+### Create Webpage
+```bash
 sudo bash -c "cat > /var/www/html/index.html <<EOF
 <!DOCTYPE html>
 <html>
-<head><title>DevOps Task</title></head>
+<head><title>DevOps Assignment</title></head>
 <body>
-    <h1>DevOps Intern Assignment</h1>
-    <p><strong>Name:</strong> Krishna</p>
-    <p><strong>Instance ID:</strong> $INSTANCE_ID</p>
-    <p><strong>Server Uptime:</strong> $UPTIME</p>
+  <h1>DevOps Intern Assignment</h1>
+  <p>Name: Krishna</p>
+  <p>Instance ID: $INSTANCE_ID</p>
+  <p>Server Uptime: $UPTIME</p>
 </body>
 </html>
 EOF"
+```
 
+### Deliverable
+Screenshot of webpage accessed via Public IP
 
-Deliverable:
-Screenshot of webpage accessed via Public IP.
+---
 
-Part 3: Monitoring Script and Cron Job
-Create Script
+## Part 3: Monitoring Script and Cron Job
 
-File: /usr/local/bin/system_report.sh
+### Create Script
+**File:** `/usr/local/bin/system_report.sh`
 
+```bash
 #!/bin/bash
 echo "--------------------------------------------------"
 echo "System Report: $(date)"
@@ -94,77 +108,94 @@ df -h / | awk 'NR==2 {print $5}'
 echo "Top 3 Processes:"
 ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head -n 4
 echo "--------------------------------------------------"
+```
 
-Make Executable
+### Make Executable
+```bash
 sudo chmod +x /usr/local/bin/system_report.sh
+```
 
-Create Log Immediately
+### Create Log Immediately
+```bash
 sudo /usr/local/bin/system_report.sh >> /var/log/system_report.log
+```
 
-Create Cron Job
+### Create Cron Job
+```bash
 sudo crontab -e
+```
 
-
-Add:
-
+Add the following line:
+```
 */5 * * * * /usr/local/bin/system_report.sh >> /var/log/system_report.log 2>&1
+```
 
+### Deliverables
+- Screenshot of `sudo crontab -l`
+- Screenshot of `/var/log/system_report.log` (showing at least two entries)
 
-Deliverables:
+---
 
-Screenshot of sudo crontab -l
+## Part 4: AWS CloudWatch Integration
 
-Screenshot of /var/log/system_report.log (showing at least two entries)
-
-Part 4: AWS CloudWatch Integration
-Install AWS CLI v2
+### Install AWS CLI v2
+```bash
 sudo apt install unzip -y
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 unzip awscliv2.zip
 sudo ./aws/install
+```
 
-Configure AWS
+### Configure AWS
+```bash
 /usr/local/bin/aws configure
+```
+- **Region:** ap-south-1
 
-
-Region: ap-south-1
-
-Create CloudWatch Group and Stream
+### Create CloudWatch Group and Stream
+```bash
 /usr/local/bin/aws logs create-log-group --log-group-name /devops/intern-metrics
-/usr/local/bin/aws logs create-log-stream --log-group-name /devops/intern-metrics --log-stream-name system-logs
 
-Push Logs to CloudWatch
+/usr/local/bin/aws logs create-log-stream \
+  --log-group-name /devops/intern-metrics \
+  --log-stream-name system-logs
+```
+
+### Push Logs to CloudWatch
+```bash
 TIMESTAMP=$(date +%s000)
 MESSAGE=$(tail -n 10 /var/log/system_report.log | tr '\n' ' ' | tr -d ',')
 
-usr/local/bin/aws logs put-log-events \
---log-group-name /devops/intern-metrics \
---log-stream-name system-logs \
---log-events timestamp=$TIMESTAMP,message="$MESSAGE"
+/usr/local/bin/aws logs put-log-events \
+  --log-group-name /devops/intern-metrics \
+  --log-stream-name system-logs \
+  --log-events timestamp=$TIMESTAMP,message="$MESSAGE"
+```
 
+### Deliverables
+- Screenshot of AWS CLI command
+- Screenshot of log entries visible in CloudWatch
 
-Deliverables:
+---
 
-Screenshot of AWS CLI command
+## Bonus Task 1: Replace Cron with Systemd Timer
 
-Screenshot of log entries visible in CloudWatch
+### Service File
+**File:** `/etc/systemd/system/system-report.service`
 
-Bonus Task 1: Replace Cron with Systemd Timer
-Service File
-
-/etc/systemd/system/system-report.service
-
+```ini
 [Unit]
 Description=System Report Service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/system_report.sh
+```
 
-Timer File
+### Timer File
+**File:** `/etc/systemd/system/system-report.timer`
 
-/etc/systemd/system/system-report.timer
-
+```ini
 [Unit]
 Description=Run System Report every 5 minutes
 
@@ -175,49 +206,60 @@ Unit=system-report.service
 
 [Install]
 WantedBy=timers.target
+```
 
-Enable Timer
+### Enable Timer
+```bash
 sudo systemctl daemon-reload
 sudo systemctl enable system-report.timer
 sudo systemctl start system-report.timer
 sudo crontab -r
+```
 
-
-Deliverable:
-Screenshot:
-
+### Deliverable
+Screenshot of:
+```bash
 sudo systemctl list-timers --all | grep system-report
+```
 
-Bonus Task 2: Email Alert (AWS SES)
-Verify Email
-usr/local/bin/aws ses verify-email-identity \
---email-address your-email@gmail.com \
---region ap-south-1
+---
 
-Update Script (alert when disk usage > 80%)
+## Bonus Task 2: Email Alert (AWS SES)
 
-Add inside /usr/local/bin/system_report.sh:
+### Verify Email
+```bash
+/usr/local/bin/aws ses verify-email-identity \
+  --email-address your-email@gmail.com \
+  --region ap-south-1
+```
 
+### Update Script
+Add inside `/usr/local/bin/system_report.sh`:
+
+```bash
 DISK_USAGE=$(df / | grep / | awk '{ print $5 }' | sed 's/%//g')
 
 if [ "$DISK_USAGE" -gt 80 ]; then
-    usr/local/bin/aws ses send-email \
+  /usr/local/bin/aws ses send-email \
     --from "your-email@gmail.com" \
     --destination "ToAddresses=your-email@gmail.com" \
     --message "Subject={Data=Disk Alert},Body={Text={Data=Disk usage is at ${DISK_USAGE}%}}" \
     --region ap-south-1
 fi
+```
 
-Test Alert
-
+### Test Alert
 Temporarily change condition:
-
+```bash
 if [ "$DISK_USAGE" -gt 5 ]; then
-
+```
 
 Run:
-
+```bash
 sudo /usr/local/bin/system_report.sh
+```
 
+Check inbox for alert email.
 
-Check inbox.
+---
+
