@@ -1,0 +1,6 @@
+[Unit]
+Description=System Report Service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/system_report.sh
